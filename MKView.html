@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Markdown 檢視與匯出工具</title>
+    <!-- 引用 Marked.js -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* --- 全局色彩與字體變數 --- */
+        :root {
+            --bg-color: #f8f9fa; /* 柔和的米白背景 */
+            --container-bg: #ffffff;
+            --primary-text-color: #212529; /* 深灰，比純黑更柔和 */
+            --secondary-text-color: #6c757d; /* 次要文字顏色 */
+            --primary-brand-color: #4a69bd; /* 溫柔的藍色 */
+            --primary-brand-hover: #5d81d2;
+            --accent-color-red: #e67e22; /* 溫暖的橘紅色，代替刺眼的紅 */
+            --accent-color-gray: #95a5a6;
+            --border-color: #dee2e6; /* 邊框顏色 */
+            --code-bg: #f1f3f5;
+            --code-block-bg: #2b303b; /* 深藍灰，代替純黑 */
+            --code-block-text: #c0c5ce;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        #app-container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--container-bg);
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
+            padding: 2rem 2.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-brand-color);
+            font-weight: 700;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.8rem;
+            margin-top: 0;
+        }
+        
+        #drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            color: var(--secondary-text-color);
+            font-size: 1.2rem;
+            transition: background-color 0.3s, border-color 0.3s;
+            margin-bottom: 1.5rem;
+        }
+
+        #drop-zone.drag-over {
+            background-color: #e9ecef;
+            border-color: var(--primary-brand-color);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--primary-brand-color);
+            color: #ffffff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 1rem;
+            font-weight: 500;
+            margin: 0.25rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .button:hover {
+            background-color: var(--primary-brand-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        #export-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            padding: 1.5rem 0;
+            border-top: 1px solid var(--border-color);
+            margin-top: 1.5rem;
+        }
+        
+        #export-controls .button-export-pdf { background-color: var(--accent-color-red); }
+        #export-controls .button-export-pdf:hover { background-color: #d35400; }
+        #export-controls .button-clear { background-color: var(--accent-color-gray); }
+        #export-controls .button-clear:hover { background-color: #7f8c8d; }
+
+        #output {
+            margin-top: 2rem;
+            border-top: 2px solid var(--border-color);
+            padding-top: 1rem;
+            line-height: 1.8;
+        }
+        
+        #output hr {
+            border: none;
+            border-top: 2px dashed #ced4da;
+            margin: 2.5rem 0;
+        }
+        
+        #initial-message { color: var(--secondary-text-color); }
+
+        /* --- ✨ 溫柔設計感 Markdown 樣式 ✨ --- */
+        #output h1, #output h2, #output h3, #output h4 {
+            color: var(--primary-text-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.4em;
+            margin-top: 2em;
+            margin-bottom: 1em;
+            font-weight: 500;
+        }
+        
+        #output p {
+            margin-bottom: 1.2em;
+        }
+
+        #output a {
+            color: var(--primary-brand-hover);
+            text-decoration: none;
+            transition: border-bottom 0.2s;
+            border-bottom: 1px solid transparent;
+        }
+        
+        #output a:hover {
+            border-bottom: 1px solid var(--primary-brand-hover);
+        }
+
+        #output code {
+            background-color: var(--code-bg);
+            color: #c7254e; /* 借用 bootstrap 的程式碼顏色 */
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+
+        #output pre {
+            background-color: var(--code-block-bg);
+            color: var(--code-block-text);
+            padding: 1.2rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        
+        #output pre code {
+             background-color: transparent;
+             color: inherit;
+             padding: 0;
+             font-size: 1em;
+        }
+        
+        #output blockquote {
+            border-left: 5px solid var(--primary-brand-color);
+            padding: 1rem 1.5rem;
+            color: #6c757d;
+            margin-left: 0;
+            background-color: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        #output table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        #output th, #output td {
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: left;
+        }
+        
+        #output th {
+            background-color: #f1f3f5;
+            font-weight: 500;
+        }
+        
+        #output tr:nth-of-type(odd) {
+            background-color: #fdfdfe;
+        }
+
+        /* --- 專為列印 (匯出PDF) 設計的樣式 --- */
+        @media print {
+            body, html {
+                padding: 0;
+                background-color: #fff;
+                font-family: 'Times New Roman', serif; /* 列印時使用襯線字體更正式 */
+            }
+            #app-container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+            }
+            h1, #drop-zone, #export-controls {
+                display: none;
+            }
+            #output {
+                margin-top: 0;
+                border-top: none;
+                padding-top: 0;
+            }
+            #output a {
+                color: #000;
+                text-decoration: underline;
+            }
+            #output code, #output pre {
+                background-color: #eee !important; /* 強制列印背景色 */
+                color: #000 !important;
+                -webkit-print-color-adjust: exact; /* 確保 Chrome/Safari 能列印背景色 */
+                print-color-adjust: exact;
+            }
+            #output table, #output th, #output td {
+                 border: 1px solid #ccc;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <h1>設計感 Markdown 檢視與匯出工具</h1>
+        
+        <div id="drop-zone">
+            <p>將您的 .md 或 .txt 檔案拖曳到這裡</p>
+            <p>或</p>
+            <label for="fileInput" class="button">選擇檔案 (可多選)</label>
+            <input type="file" id="fileInput" accept=".md, .txt, text/plain" multiple>
+        </div>
+        
+        <div id="output">
+            <p id="initial-message">這裡是 Markdown 渲染後的結果...</p>
+        </div>
+
+        <div id="export-controls">
+            <button id="exportMd" class="button">匯出 .md</button>
+            <button id="exportTxt" class="button">匯出 .txt</button>
+            <button id="exportPdf" class="button button-export-pdf">匯出 PDF</button>
+            <button id="clearContent" class="button button-clear">清空內容</button>
+        </div>
+    </div>
+
+    <!-- JavaScript 保持不變，因為邏輯功能相同 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('fileInput');
+            const output = document.getElementById('output');
+            const initialMessage = document.getElementById('initial-message');
+
+            let accumulatedMarkdown = '';
+            let isFirstFile = true;
+
+            const processFiles = (files) => {
+                if (!files.length) return;
+
+                if (isFirstFile) {
+                    output.innerHTML = '';
+                    isFirstFile = false;
+                }
+                
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    
+                    reader.onload = (event) => {
+                        const markdownContent = event.target.result;
+                        
+                        if (accumulatedMarkdown.length > 0) {
+                            accumulatedMarkdown += '\n\n---\n\n';
+                        }
+                        accumulatedMarkdown += markdownContent;
+                        
+                        const htmlContent = marked.parse(markdownContent);
+                        output.innerHTML += htmlContent + '<hr>';
+                    };
+
+                    reader.onerror = () => {
+                        output.innerHTML += '<p style="color: red;">讀取檔案 ' + file.name + ' 時發生錯誤。</p><hr>';
+                    };
+                    
+                    reader.readAsText(file);
+                });
+            };
+
+            const exportToFile = (filename, content) => {
+                if (!content) {
+                    alert('沒有內容可以匯出！');
+                    return;
+                }
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            };
+
+            fileInput.addEventListener('change', (event) => {
+                processFiles(event.target.files);
+            });
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            dropZone.addEventListener('dragover', () => dropZone.classList.add('drag-over'));
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+
+            dropZone.addEventListener('drop', (event) => {
+                dropZone.classList.remove('drag-over');
+                processFiles(event.dataTransfer.files);
+            });
+            
+            document.getElementById('exportMd').addEventListener('click', () => {
+                exportToFile('content.md', accumulatedMarkdown);
+            });
+            
+            document.getElementById('exportTxt').addEventListener('click', () => {
+                exportToFile('content.txt', accumulatedMarkdown);
+            });
+            
+            document.getElementById('exportPdf').addEventListener('click', () => {
+                if (!accumulatedMarkdown) {
+                    alert('沒有內容可以匯出！');
+                    return;
+                }
+                window.print();
+            });
+
+            document.getElementById('clearContent').addEventListener('click', () => {
+                accumulatedMarkdown = '';
+                output.innerHTML = '';
+                // 重新創建並附加初始訊息
+                const newInitialMessage = document.createElement('p');
+                newInitialMessage.id = 'initial-message';
+                newInitialMessage.textContent = '這裡是 Markdown 渲染後的結果...';
+                output.appendChild(newInitialMessage);
+                isFirstFile = true;
+            });
+        });
+    </script>
+
+</body>
+</html>
